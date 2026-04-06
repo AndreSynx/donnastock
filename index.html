@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DonnaStock — Day Trading Picks</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --card: #111827; --card2: #1a2236;
+    --gold: #f59e0b; --green: #10b981; --red: #ef4444; --blue: #3b82f6;
+    --text: #f1f5f9; --dim: #64748b; --border: rgba(255,255,255,0.08);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; }
+
+  .header { background:linear-gradient(135deg,#0f172a,#1e293b); border-bottom:1px solid var(--border); padding:16px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; backdrop-filter:blur(12px); }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-icon { width:38px; height:38px; background:linear-gradient(135deg,var(--gold),#d97706); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .logo-text { font-size:22px; font-weight:900; background:linear-gradient(135deg,var(--gold),#fbbf24); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:-0.5px; }
+  .logo-sub { font-size:10px; color:var(--dim); letter-spacing:0.15em; text-transform:uppercase; }
+  .header-right { display:flex; align-items:center; gap:12px; }
+  .market-time { font-family:monospace; font-size:12px; color:var(--dim); }
+  .refresh-btn { background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.4); color:var(--gold); padding:7px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .refresh-btn:hover { background:rgba(245,158,11,0.3); }
+  .refresh-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+  .container { max-width:1100px; margin:0 auto; padding:20px; }
+
+  .status-bar { display:flex; align-items:center; gap:12px; padding:11px 16px; background:var(--card2); border:1px solid var(--border); border-radius:10px; margin-bottom:20px; font-size:12px; }
+  .status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .status-dot.live { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+  .status-dot.loading { background:var(--gold); box-shadow:0 0 8px var(--gold); animation:pulse 1s infinite; }
+  .status-dot.demo { background:var(--blue); }
+  .status-dot.err { background:var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+  .status-time { margin-left:auto; font-family:monospace; color:var(--dim); }
+
+  .section-label { font-size:11px; font-weight:700; color:var(--dim); letter-spacing:0.18em; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  .picks-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-bottom:28px; }
+
+  .pick-card { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; position:relative; }
+  .pick-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .pick-card.p1::before { background:linear-gradient(90deg,var(--gold),#fbbf24); }
+  .pick-card.p2::before { background:linear-gradient(90deg,var(--blue),#60a5fa); }
+
+  .pick-top { padding:16px 18px 12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; }
+  .pick-badge { font-size:9px; font-weight:800; padding:3px 8px; border-radius:4px; letter-spacing:0.12em; margin-bottom:6px; display:inline-block; }
+  .p1 .pick-badge { background:rgba(245,158,11,0.2); color:var(--gold); border:1px solid rgba(245,158,11,0.35); }
+  .p2 .pick-badge { background:rgba(59,130,246,0.2); color:var(--blue); border:1px solid rgba(59,130,246,0.35); }
+  .pick-sym { font-size:28px; font-weight:900; letter-spacing:-1px; line-height:1; }
+  .pick-name { font-size:11px; color:var(--dim); margin-top:3px; }
+  .pick-price-box { text-align:right; }
+  .pick-price { font-size:22px; font-weight:800; font-family:monospace; }
+  .pick-chg { font-size:13px; font-weight:700; color:var(--green); }
+
+  .pick-levels { padding:14px 18px; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .lvl { padding:10px 8px; border-radius:8px; text-align:center; }
+  .lvl.entry { background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); }
+  .lvl.target { background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); }
+  .lvl.stop { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); }
+  .lvl-label { font-size:9px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:5px; }
+  .lvl.entry .lvl-label { color:var(--green); }
+  .lvl.target .lvl-label { color:var(--gold); }
+  .lvl.stop .lvl-label { color:var(--red); }
+  .lvl-price { font-size:15px; font-weight:800; font-family:monospace; }
+  .lvl.entry .lvl-price { color:var(--green); }
+  .lvl.target .lvl-price { color:var(--gold); }
+  .lvl.stop .lvl-price { color:var(--red); }
+  .lvl-pct { font-size:10px; color:var(--dim); margin-top:2px; }
+
+  .pick-foot { padding:10px 18px; background:rgba(255,255,255,0.02); display:flex; justify-content:space-between; font-size:11px; color:var(--dim); }
+  .pick-foot strong { color:var(--text); }
+
+  .gainers-card { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:24px; }
+  .gainers-head { padding:13px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .gainers-head h3 { font-size:14px; font-weight:700; }
+  .g-count { font-size:11px; color:var(--dim); font-family:monospace; }
+  table { width:100%; border-collapse:collapse; }
+  th { padding:9px 16px; font-size:10px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:0.1em; text-align:right; border-bottom:1px solid var(--border); }
+  th:first-child { text-align:left; }
+  td { padding:11px 16px; font-size:13px; text-align:right; border-bottom:1px solid rgba(255,255,255,0.03); }
+  td:first-child { text-align:left; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(255,255,255,0.02); }
+  .t-sym { font-weight:800; font-size:14px; }
+  .t-name { font-size:10px; color:var(--dim); }
+  .t-gain { color:var(--green); font-weight:700; font-family:monospace; }
+  .t-vol { color:var(--dim); font-family:monospace; }
+  .t-price { font-family:monospace; font-weight:600; }
+  .pdot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+
+  .loading-wrap { text-align:center; padding:60px 20px; color:var(--dim); }
+  .spinner { width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.75s linear infinite; margin:0 auto 14px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  .alert { padding:14px 18px; border-radius:10px; font-size:12px; margin-bottom:16px; line-height:1.6; }
+  .alert.info { background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); color:#93c5fd; }
+  .alert.warn { background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); color:#fcd34d; }
+
+  .disclaimer { font-size:11px; color:var(--dim); text-align:center; padding:16px 20px; border-top:1px solid var(--border); line-height:1.7; }
+
+  @media(max-width:580px) {
+    .picks-grid { grid-template-columns:1fr; }
+    th:nth-child(4),td:nth-child(4) { display:none; }
+    .pick-sym { font-size:22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">📈</div>
+    <div>
+      <div class="logo-text">DonnaStock</div>
+      <div class="logo-sub">Day Trading Intelligence</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="market-time" id="mktTime">--:--</div>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadData()">⟳ Refresh</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="status-bar">
+    <div class="status-dot loading" id="sDot"></div>
+    <span id="sText">Initializing...</span>
+    <span class="status-time" id="sTime"></span>
+  </div>
+
+  <div id="alertBox"></div>
+  <div id="loadingWrap" class="loading-wrap"><div class="spinner"></div><p>Scanning top gainers...</p></div>
+
+  <div id="mainContent" style="display:none">
+    <div class="section-label">🎯 Top 2 Day Trade Picks</div>
+    <div class="picks-grid" id="picksGrid"></div>
+    <div class="section-label">🔥 Top Gainers</div>
+    <div class="gainers-card">
+      <div class="gainers-head"><h3>Market Movers</h3><span class="g-count" id="gCount"></span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Ticker</th><th>Price</th><th>Change</th><th>Volume</th><th>Score</th></tr></thead><tbody id="gBody"></tbody></table></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="disclaimer">⚠ DonnaStock is for informational purposes only and does not constitute financial advice. Day trading involves substantial risk of loss. Always conduct your own due diligence.</div>
+
+<script>
+// Demo stocks (fallback when CORS blocks live data)
+const DEMO = [
+  {symbol:'NVDA',name:'NVIDIA Corp',price:875.40,changePct:5.08,volume:48200000},
+  {symbol:'TSLA',name:'Tesla Inc',price:248.90,changePct:8.08,volume:95300000},
+  {symbol:'PLTR',name:'Palantir Technologies',price:24.80,changePct:10.71,volume:62500000},
+  {symbol:'SOFI',name:'SoFi Technologies',price:8.92,changePct:10.81,volume:41200000},
+  {symbol:'RIVN',name:'Rivian Automotive',price:14.60,changePct:14.51,volume:38700000},
+  {symbol:'SMCI',name:'Super Micro Computer',price:42.30,changePct:13.71,volume:29800000},
+  {symbol:'COIN',name:'Coinbase Global',price:228.40,changePct:9.49,volume:14300000},
+  {symbol:'AMD',name:'Advanced Micro Devices',price:178.25,changePct:6.71,volume:32100000},
+  {symbol:'MSTR',name:'MicroStrategy',price:1240.50,changePct:8.64,volume:7400000},
+  {symbol:'META',name:'Meta Platforms',price:512.30,changePct:4.51,volume:18900000},
+];
+
+// Scoring: % gain (40%) + volume (35%) + price sweet-spot (25%)
+function score(s) {
+  const g = Math.min(s.changePct / 20, 1) * 40;
+  const v = Math.min(s.volume / 1e8, 1) * 35;
+  const p = (s.price >= 5 && s.price <= 500) ? 25 : (s.price > 500 ? 12 : 4);
+  return g + v + p;
+}
+
+function levels(s) {
+  const buf = s.price * 0.015;
+  const entry  = +(s.price + buf * 0.25).toFixed(2);
+  const target = +(s.price + buf * 3.2).toFixed(2);
+  const stop   = +(s.price - buf * 1.1).toFixed(2);
+  const rr     = ((target - entry) / (entry - stop)).toFixed(1);
+  return {entry, target, stop, rr};
+}
+
+function fmt(n) { return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtVol(v) { return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v; }
+function pct(a,b) { return (((a-b)/b)*100).toFixed(2); }
+
+function renderPick(s, rank) {
+  const lv = levels(s);
+  const cls = rank===1 ? 'p1' : 'p2';
+  const label = rank===1 ? '⭐ PICK #1 — TOP SCORE' : '🔵 PICK #2';
+  return `<div class="pick-card ${cls}">
+    <div class="pick-top">
+      <div>
+        <div class="pick-badge">${label}</div>
+        <div class="pick-sym">${s.symbol}</div>
+        <div class="pick-name">${s.name}</div>
+      </div>
+      <div class="pick-price-box">
+        <div class="pick-price">$${fmt(s.price)}</div>
+        <div class="pick-chg">▲ +${s.changePct.toFixed(2)}%</div>
+      </div>
+    </div>
+    <div class="pick-levels">
+      <div class="lvl entry">
+        <div class="lvl-label">Buy Entry</div>
+        <div class="lvl-price">$${fmt(lv.entry)}</div>
+        <div class="lvl-pct">+${pct(lv.entry,s.price)}%</div>
+      </div>
+      <div class="lvl target">
+        <div class="lvl-label">Exit Target</div>
+        <div class="lvl-price">$${fmt(lv.target)}</div>
+        <div class="lvl-pct">+${pct(lv.target,s.price)}%</div>
+      </div>
+      <div class="lvl stop">
+        <div class="lvl-label">Stop Loss</div>
+        <div class="lvl-price">$${fmt(lv.stop)}</div>
+        <div class="lvl-pct">${pct(lv.stop,s.price)}%</div>
+      </div>
+    </div>
+    <div class="pick-foot">
+      <span>R/R <strong>${lv.rr}:1</strong></span>
+      <span>Vol <strong>${fmtVol(s.volume)}</strong></span>
+      <span>Score <strong>${score(s).toFixed(0)}</strong></span>
+    </div>
+  </div>`;
+}
+
+function renderGainers(stocks, picks) {
+  const pickMap = {[picks[0]?.symbol]:'var(--gold)',[picks[1]?.symbol]:'var(--blue)'};
+  return stocks.map(s => {
+    const dot = pickMap[s.symbol] ? `<span class="pdot" style="background:${pickMap[s.symbol]}"></span>` : '';
+    return `<tr>
+      <td><div class="t-sym">${dot}${s.symbol}</div><div class="t-name">${s.name}</div></td>
+      <td class="t-price">$${fmt(s.price)}</td>
+      <td class="t-gain">▲ +${s.changePct.toFixed(2)}%</td>
+      <td class="t-vol">${fmtVol(s.volume)}</td>
+      <td style="font-family:monospace;font-size:12px;color:${pickMap[s.symbol]||'var(--dim)'};font-weight:${pickMap[s.symbol]?700:400}">${score(s).toFixed(0)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setStatus(type, text, time) {
+  document.getElementById('sDot').className = 'status-dot ' + type;
+  document.getElementById('sText').textContent = text;
+  document.getElementById('sTime').textContent = time || '';
+}
+
+function showAlert(type, msg) {
+  document.getElementById('alertBox').innerHTML = `<div class="alert ${type}">${msg}</div>`;
+}
+
+async function tryFetchLive() {
+  try {
+    const proxy = 'https://api.allorigins.win/get?url=';
+    const target = encodeURIComponent('https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count=25&scrIds=day_gainers');
+    const res = await fetch(proxy + target, {signal: AbortSignal.timeout(7000)});
+    const json = await res.json();
+    const parsed = JSON.parse(json.contents);
+    const quotes = parsed?.finance?.result?.[0]?.quotes || [];
+    if (quotes.length < 3) return null;
+    return quotes.map(q => ({
+      symbol: q.symbol,
+      name: q.shortName || q.longName || q.symbol,
+      price: q.regularMarketPrice,
+      changePct: q.regularMarketChangePercent,
+      volume: q.regularMarketVolume
+    })).filter(s => s.price > 0 && s.changePct > 0);
+  } catch(e) {
+    return null;
+  }
+}
+
+async function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = '⟳ Loading...';
+  document.getElementById('loadingWrap').style.display = 'block';
+  document.getElementById('mainContent').style.display = 'none';
+  document.getElementById('alertBox').innerHTML = '';
+  setStatus('loading', 'Fetching top gainers...');
+
+  let stocks = await tryFetchLive();
+  let isDemo = false;
+
+  if (!stocks || stocks.length < 3) {
+    stocks = DEMO;
+    isDemo = true;
+    showAlert('info', '📡 Live market data unavailable in this browser (CORS restriction). Showing <strong>demo data</strong> for illustration. For live data, open via a local server or backend proxy.');
+  }
+
+  // Score, filter, sort
+  const scored = stocks
+    .filter(s => s.price >= 5 && s.changePct > 0)
+    .map(s => ({...s, _score: score(s)}))
+    .sort((a,b) => b._score - a._score);
+
+  const picks = scored.slice(0, 2);
+  const byGain = [...scored].sort((a,b) => b.changePct - a.changePct);
+
+  document.getElementById('picksGrid').innerHTML = picks.map((s,i) => renderPick(s, i+1)).join('');
+  document.getElementById('gBody').innerHTML = renderGainers(byGain, picks);
+  document.getElementById('gCount').textContent = `${byGain.length} stocks`;
+
+  document.getElementById('loadingWrap').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/New_York'});
+  setStatus(isDemo ? 'demo' : 'live', isDemo ? 'Demo data' : 'Live data', `Updated ${now} ET`);
+
+  btn.disabled = false; btn.textContent = '⟳ Refresh';
+}
+
+// Clock
+setInterval(() => {
+  document.getElementById('mktTime').textContent = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'America/New_York'}) + ' ET';
+}, 1000);
+
+// Auto-refresh every 60s during market hours
+setInterval(() => {
+  const et = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const h = et.getHours(), m = et.getMinutes();
+  if ((h > 9 || (h === 9 && m >= 30)) && h < 16) loadData();
+}, 60000);
+
+loadData();
+</script>
+</body>
+</html>
